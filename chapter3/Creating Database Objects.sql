@@ -1,0 +1,605 @@
+USE ROLE SYSADMIN;
+USE DATABASE COMPUTE_WH;
+CREATE
+OR REPLACE TRANSIENT DATABASE DEMO3B_DB Comment = 'Transient Database for Chapter 3 Exercises';
+USE ROLE SYSADMIN;
+SHOW DATABASES;
+USE ROLE ACCOUNTADMIN;
+SHOW DATABASES;
+USE ROLE SYSADMIN;
+ALTER DATABASE DEMO3A_DB
+SET
+    DATA_RETENTION_TIME_IN_DAYS = 10;
+USE ROLE SYSADMIN;
+ALTER DATABASE DEMO3B_DB
+SET
+    DATA_RETENTION_TIME_IN_DAYS = 10;
+USE ROLE SYSADMIN;
+SHOW DATABASES;
+CREATE TABLE IF NOT EXISTS DEMO3B_DB.PUBLIC.SUMMARY (
+        CASH_AMT number,
+        RECEIVABLES_AMT number,
+        CUSTOMER_AMT number
+    );
+SHOW TABLES;
+USE ROLE SYSADMIN;
+CREATE SCHEMA DEMO3A_DB.BANKING;
+SHOW SCHEMAS;
+ALTER SCHEMA DEMO3A_DB.BANKING
+SET
+    DATA_RETENTION_TIME_IN_DAYS = 1;
+SHOW DATABASES;
+USE ROLE SYSADMIN;
+CREATE
+    OR REPLACE SCHEMA DEMO3B_DB.BANKING;
+ALTER TABLE
+    DEMO3B_DB.PUBLIC.SUMMARY RENAME TO DEMO3B_DB.BANKING.SUMMARY;
+SELECT
+    *
+FROM
+    SNOWFLAKE_SAMPLE_DATA.INFORMATION_SCHEMA.SCHEMATA;
+SHOW SCHEMAS IN DATABASE SNOWFLAKE_SAMPLE_DATA;
+SELECT
+    *
+FROM
+    DEMO3A_DB.INFORMATION_SCHEMA.TABLE_PRIVILEGES;
+SELECT
+    *
+FROM
+    DEMO3B_DB.INFORMATION_SCHEMA.TABLE_PRIVILEGES;
+USE ROLE ACCOUNTADMIN;
+USE DATABASE SNOWFLAKE;
+USE SCHEMA ACCOUNT_USAGE;
+USE WAREHOUSE COMPUTE_WH;
+SELECT
+    start_time::date AS USAGE_DATE,
+    WAREHOUSE_NAME,
+    SUM(credits_used) AS TOTAL_CREDITS_CONSUMED
+FROM
+    warehouse_metering_history
+WHERE
+    start_time >= date_trunc(Month, current_date)
+GROUP BY
+    1,
+    2
+ORDER BY
+    2,
+    1;
+USE ROLE SYSADMIN;
+USE DATABASE DEMO3A_DB;
+CREATE
+    OR REPLACE SCHEMA BANKING;
+CREATE
+    OR REPLACE TABLE CUSTOMER_ACT (
+        Customer_Account int,
+        Amount int,
+        transaction_ts timestamp
+    );
+CREATE
+    OR REPLACE TABLE CASH (
+        Customer_Account int,
+        Amount int,
+        transaction_ts timestamp
+    );
+CREATE
+    OR REPLACE TABLE RECEIVABLES (
+        Customer_Account int,
+        Amount int,
+        transaction_ts timestamp
+    );
+USE ROLE SYSADMIN;
+CREATE
+    OR REPLACE TABLE NEWTABLE (
+        Customer_Account int,
+        Amount int,
+        transaction_ts timestamp
+    );
+DROP TABLE DEMO3A_DB.BANKING.NEWTABLE;
+USE ROLE SYSADMIN;
+CREATE
+    OR REPLACE VIEW DEMO3B_DB.PUBLIC.NEWVIEW AS
+SELECT
+    CC_NAME
+FROM
+    (
+        SELECT
+            *
+        FROM
+            SNOWFLAKE_SAMPLE_DATA.TPCDS_SF100TCL.CALL_CENTER
+    );
+USE ROLE SYSADMIN;
+CREATE
+    OR REPLACE MATERIALIZED VIEW DEMO3B_DB.PUBLIC.NEWVIEW_MVW AS
+SELECT
+    CC_NAME
+FROM
+    (
+        SELECT
+            *
+        FROM
+            SNOWFLAKE_SAMPLE_DATA.TPCDS_SF100TCL.CALL_CENTER
+    );
+USE SCHEMA DEMO3B_DB.PUBLIC;
+SHOW VIEWS;
+CREATE
+    OR REPLACE MATERIALIZED VIEW DEMO3B_DB.BANKING.SUMMARY_MVW AS
+SELECT
+    *
+FROM
+    (
+        SELECT
+            *
+        FROM
+            DEMO3B_DB.BANKING.SUMMARY
+    );
+CREATE
+    OR REPLACE VIEW DEMO3B_DB.BANKING.SUMMARY_VW AS
+SELECT
+    *
+FROM
+    (
+        SELECT
+            *
+        FROM
+            DEMO3B_DB.BANKING.SUMMARY
+    );
+USE ROLE SYSADMIN;
+USE DATABASE DEMO3B_DB;
+CREATE
+    OR REPLACE FILE FORMAT FF_JSON TYPE = JSON;
+USE ROLE SYSADMIN;
+USE DATABASE DEMO3B_DB;
+USE SCHEMA BANKING;
+CREATE
+    OR REPLACE TEMPORARY STAGE BANKING_STG FILE_FORMAT = FF_JSON;
+USE ROLE SYSADMIN;
+CREATE
+    OR REPLACE DATABASE DEMO3C_DB;
+CREATE
+    OR REPLACE FUNCTION JS_PROPERTIES() RETURNS string LANGUAGE JAVASCRIPT AS $$ return Object.getOwnPropertyNames(this); $$;
+SELECT
+    JS_PROPERTIES() USE ROLE SYSADMIN;
+USE DATABASE DEMO3C_DB;
+CREATE
+    OR REPLACE FUNCTION FACTORIAL(n variant) RETURNS variant LANGUAGE JAVASCRIPT AS 'var f=n
+     for (i=n-1; i>0; i--){
+        f=f*i}
+        return f'
+SELECT
+    FACTORIAL(50);
+    ------------------------Secure SQL UDTF That Returns Tabular Value-------------------------------
+    USE ROLE SYSADMIN;
+CREATE
+    OR REPLACE DATABASE DEMO3D_DB;
+CREATE
+    OR REPLACE TABLE DEMO3D_DB.PUBLIC.SALES AS (
+        SELECT
+            *
+        FROM
+            SNOWFLAKE_SAMPLE_DATA.TPCDS_SF100TCL.WEB_SALES
+    )
+LIMIT
+    100000;
+SELECT
+    *
+FROM
+    SALES;
+SELECT
+    1 AS INPUT_ITEM,
+    WS_WEB_SITE_SK AS BASKET_ITEM,
+    COUNT(DISTINCT WS_ORDER_NUMBER) BASKETS
+FROM
+    DEMO3D_DB.PUBLIC.SALES
+WHERE
+    WS_ORDER_NUMBER IN (
+        SELECT
+            WS_ORDER_NUMBER
+        FROM
+            DEMO3D_DB.PUBLIC.SALES
+        WHERE
+            WS_WEB_SITE_SK = 1
+    )
+GROUP BY
+    WS_WEB_SITE_SK
+ORDER BY
+    3 DESC,
+    2;
+'
+
+USE ROLE SYSADMIN;
+CREATE OR REPLACE SECURE FUNCTION
+DEMO3D_DB.PUBLIC.GET_MKTBASKET(INPUT_WEB_SITE_SK number(38))
+RETURNS TABLE (INPUT_ITEM NUMBER(38, 0), BASKET_ITEM NUMBER(38, 0),
+BASKETS NUMBER(38, 0)) AS
+'
+SELECT
+    input_web_site_sk,
+    WS_WEB_SITE_SK as BASKET_ITEM,
+    COUNT(DISTINCT WS_ORDER_NUMBER) BASKETS
+FROM
+    DEMO3D_DB.PUBLIC.SALES
+WHERE
+    WS_ORDER_NUMBER IN (
+        SELECT
+            WS_ORDER_NUMBER
+        FROM
+            DEMO3D_DB.PUBLIC.SALES
+        WHERE
+            WS_WEB_SITE_SK = input_web_site_sk
+    )
+GROUP BY
+    ws_web_site_sk
+ORDER BY
+    3 DESC,
+    2 ';
+    '
+select
+    *
+from
+    TABLE(DEMO3D_DB.PUBLIC.GET_MKTBASKET(1));
+CREATE
+    OR REPLACE DATABASE DEMO3E_DB;
+CREATE OR REPLACE PROCEDURE STOREDPROC1(ARGUMENT1 VARCHAR)
+    RETURNS string not null
+    language javascript
+    AS $$ var INPUT_ARGUMENT1 = ARGUMENT1;
+var result = `${INPUT_ARGUMENT1}` return result;
+$$;
+
+
+CALL STOREDPROC1('I really love Snowflake ❄');
+
+SELECT * FROM DEMO3E_DB.INFORMATION_SCHEMA.PROCEDURES;
+
+
+USE ROLE SYSADMIN; USE DATABASE DEMO3A_DB; USE SCHEMA BANKING;
+CREATE OR REPLACE PROCEDURE deposit(PARAM_ACCT FLOAT, PARAM_AMT FLOAT)
+returns STRING LANGUAGE javascript AS
+$$ var ret_val = "";
+var cmd_debit = "";
+var cmd_credit = "";
+    // INSERT data into tables
+    cmd_debit = "INSERT INTO DEMO3A_DB.BANKING.CASH VALUES (" + PARAM_ACCT + "," + PARAM_AMT + ",current_timestamp());";
+cmd_credit = "INSERT INTO DEMO3A_DB.BANKING.CUSTOMER_ACCT VALUES (" + PARAM_ACCT + "," + PARAM_AMT + ",current_timestamp());";
+    // BEGIN transaction
+    snowflake.execute ({ sqlText: cmd_debit });
+snowflake.execute ({ sqlText: cmd_credit });
+ret_val = "Deposit Transaction Succeeded";
+return ret_val;
+$$;
+
+
+select * from DEMO3A_DB.BANKING.CASH;
+select * from DEMO3A_DB.BANKING.CUSTOMER_ACCT;
+
+USE ROLE SYSADMIN;USE DATABASE DEMO3A_DB; USE SCHEMA BANKING;
+CREATE OR REPLACE PROCEDURE withdrawal(PARAM_ACCT FLOAT, PARAM_AMT FLOAT)
+returns STRING LANGUAGE javascript AS
+$$ var ret_val = "";
+var cmd_debit = "";
+var cmd_credit = "";
+    // INSERT data into tables
+    cmd_debit = "INSERT INTO DEMO3A_DB.BANKING.CUSTOMER_ACCT VALUES (" + PARAM_ACCT + "," + (- PARAM_AMT) + ",current_timestamp());";
+cmd_credit = "INSERT INTO DEMO3A_DB.BANKING.CASH VALUES (" + PARAM_ACCT + "," + (- PARAM_AMT) + ",current_timestamp());";
+    // BEGIN transaction
+    snowflake.execute ({ sqlText: cmd_debit });
+snowflake.execute ({ sqlText: cmd_credit });
+ret_val = "Withdrawal Transaction Succeeded";
+return ret_val;
+$$;
+
+USE ROLE SYSADMIN;USE DATABASE DEMO3A_DB; USE SCHEMA BANKING;
+CREATE OR REPLACE PROCEDURE loan_payment(PARAM_ACCT FLOAT, PARAM_AMT FLOAT)
+returns STRING LANGUAGE javascript AS
+$$ var ret_val = "";
+var cmd_debit = "";
+var cmd_credit = "";
+    // INSERT data into the tables
+    cmd_debit = "INSERT INTO DEMO3A_DB.BANKING.CASH VALUES (" + PARAM_ACCT + "," + PARAM_AMT + ",current_timestamp());";
+cmd_credit = "INSERT INTO DEMO3A_DB.BANKING.RECEIVABLES VALUES (" + PARAM_ACCT + "," +(- PARAM_AMT) + ",current_timestamp());";
+    //BEGIN transaction
+    snowflake.execute ({ sqlText: cmd_debit });
+snowflake.execute ({ sqlText: cmd_credit });
+ret_val = "Loan Payment Transaction Succeeded";
+return ret_val;
+$$;
+
+CALL withdrawal(21, 100);
+CALL loan_payment(21, 100);
+CALL deposit(21, 100);
+
+
+SELECT CUSTOMER_ACCOUNT, AMOUNT FROM DEMO3A_DB.BANKING.CASH;
+
+USE ROLE SYSADMIN; USE DATABASE DEMO3A_DB; USE SCHEMA BANKING;
+TRUNCATE TABLE DEMO3A_DB.BANKING.CUSTOMER_ACCT;
+TRUNCATE TABLE DEMO3A_DB.BANKING.CASH;
+TRUNCATE TABLE DEMO3A_DB.BANKING.RECEIVABLES;
+
+USE ROLE SYSADMIN;
+CALL deposit(21, 10000);
+CALL deposit(21, 400);
+CALL loan_payment(14, 1000);
+CALL withdrawal(21, 500);
+CALL deposit(72, 4000);
+CALL withdrawal(21, 250);
+
+
+USE ROLE SYSADMIN; USE DATABASE DEMO3B_DB; USE SCHEMA BANKING;
+CREATE OR REPLACE PROCEDURE Transactions_Summary()
+returns STRING LANGUAGE javascript AS
+$$ var cmd_truncate = `TRUNCATE TABLE IF EXISTS DEMO3B_DB.BANKING.SUMMARY;` var sql = snowflake.createStatement({ sqlText: cmd_truncate });
+    //Summarize Cash Amount
+    var cmd_cash = `Insert into DEMO3B_DB.BANKING.SUMMARY (CASH_AMT)
+select sum(AMOUNT) from DEMO3A_DB.BANKING.CASH;` var sql = snowflake.createStatement({ sqlText: cmd_cash });
+    //Summarize Receivables Amount
+    var cmd_receivables = `Insert into DEMO3B_DB.BANKING.SUMMARY
+(RECEIVABLES_AMT) select sum(AMOUNT) from DEMO3A_DB.BANKING.RECEIVABLES;` var sql = snowflake.createStatement({ sqlText: cmd_receivables });
+    //Summarize Customer Account Amount
+    var cmd_customer = `Insert into DEMO3B_DB.BANKING.SUMMARY (CUSTOMER_AMT)
+select sum(AMOUNT) from DEMO3A_DB.BANKING.CUSTOMER_ACCT;` var sql = snowflake.createStatement({ sqlText: cmd_customer });
+    //BEGIN transaction
+    snowflake.execute ({ sqlText: cmd_truncate });
+snowflake.execute ({ sqlText: cmd_cash });
+snowflake.execute ({ sqlText: cmd_receivables });
+snowflake.execute ({ sqlText: cmd_customer });
+ret_val = "Transactions Successfully Summarized";
+return ret_val;
+$$;
+
+CALL Transactions_Summary();
+SELECT * FROM DEMO3B_DB.BANKING.SUMMARY
+
+USE ROLE SYSADMIN; USE DATABASE DEMO3B_DB;USE SCHEMA BANKING;
+SELECT * FROM DEMO3B_DB.BANKING.SUMMARY_MVW;
+
+USE ROLE SYSADMIN;
+USE ROLE SYSADMIN; USE DATABASE DEMO3E_DB;
+CREATE OR REPLACE PROCEDURE drop_db()
+RETURNS STRING NOT NULL LANGUAGE javascript AS
+$$ var cmd = `DROP DATABASE DEMO3A_DB;` var sql = snowflake.createStatement({ sqlText: cmd });
+var result = sql.execute();
+return 'Database has been successfully dropped';
+$$;
+
+CALL drop_db();
+
+USE ROLE SYSADMIN;
+CREATE OR REPLACE PROCEDURE drop_db() RETURNS STRING NOT NULL
+LANGUAGE javascript AS
+$$ var cmd = `DROP DATABASE "DEMO3B_DB";` var sql = snowflake.createStatement({ sqlText: cmd });
+var result = sql.execute();
+return 'Database has been successfully dropped';
+$$;
+
+USE ROLE SYSADMIN; USE DATABASE DEMO3E_DB;
+CREATE OR REPLACE TASK tsk_wait_15
+WAREHOUSE = COMPUTE_WH SCHEDULE = '15 MINUTE'
+AS 
+CALL drop_db();
+
+
+USE ROLE ACCOUNTADMIN;
+GRANT EXECUTE TASK ON ACCOUNT to ROLE SYSADMIN;
+
+USE ROLE SYSADMIN;
+ALTER TASK IF EXISTS tsk_wait_15 RESUME;
+
+
+
+SELECT * FROM table(information_schema.task_history
+(task_name => 'tsk_wait_15',
+scheduled_time_range_start =>
+dateadd('hour', -1, current_timestamp())));
+
+select current_timestamp()
+
+USE ROLE SYSADMIN;
+ALTER TASK IF EXISTS tsk_15 SUSPEND;
+
+USE ROLE SYSADMIN; USE DATABASE DEMO3E_DB;
+CREATE OR REPLACE SEQUENCE SEQ_01 START = 1 INCREMENT = 1;
+CREATE OR REPLACE TABLE SEQUENCE_TEST(i integer);
+
+select * from SEQUENCE_TEST;
+
+select SEQ_01.nextval
+
+USE ROLE SYSADMIN; USE DATABASE DEMO3E_DB;
+CREATE OR REPLACE SEQUENCE SEQ_02 START = 1 INCREMENT = 2;
+CREATE OR REPLACE TABLE SEQUENCE_TEST(i integer);
+
+
+SELECT SEQ_02.NEXTVAL a, SEQ_02.NEXTVAL b,SEQ_02.NEXTVAL c,SEQ_02.NEXTVAL d;
+
+USE ROLE SYSADMIN;
+CREATE OR REPLACE DATABASE DEMO3F_DB;
+CREATE OR REPLACE SCHEMA BANKING;
+CREATE OR REPLACE TABLE BRANCH(ID varchar, City varchar, Amount number(10, 2));
+INSERT INTO BRANCH (ID, City, Amount)
+values
+(12001, 'Abilene', 5387.97),
+(12002, 'Barstow', 34478.10),
+(12003, 'Cadbury', 8994.63);
+
+select * from DEMO3F_DB.BANKING.BRANCH;
+
+CREATE OR REPLACE STREAM STREAM_A ON TABLE BRANCH;
+CREATE OR REPLACE STREAM STREAM_B ON TABLE BRANCH;
+
+SHOW STREAMS;
+
+select * from STREAM_A;
+select * from STREAM_B;
+
+
+INSERT INTO BRANCH(ID, city, amount)
+values 
+(12004, 'Denton', 41242.93),
+(12005, 'Everett', 6175.22),
+(12006, 'Fargo', 443689.75);
+
+CREATE OR REPLACE STREAM STREAM_C ON TABLE BRANCH;
+
+INSERT INTO BRANCH (ID, City, Amount)
+values
+(12007, 'Galveston', 351247.79),
+(12008, 'Houston', 917011.27);
+
+
+
+select * from BRANCH;
+select * from STREAM_A;
+select * from STREAM_B;
+select * from STREAM_C;
+
+CREATE OR REPLACE STREAM STREAM_B ON TABLE BRANCH;
+
+DELETE FROM BRANCH WHERE ID = 12001;
+DELETE FROM BRANCH WHERE ID = 12004;
+DELETE FROM BRANCH WHERE ID = 12007;
+
+UPDATE BRANCH SET City = 'Fayetteville' WHERE ID = 12006;
+SELECT * FROM BRANCH;
+
+
+
+USE ROLE SECURITYADMIN;
+CREATE ROLE TASKADMIN;
+
+USE ROLE ACCOUNTADMIN;
+GRANT EXECUTE TASK, EXECUTE MANAGED TASK ON ACCOUNT TO ROLE TASKADMIN;
+
+
+USE ROLE SECURITYADMIN;
+
+GRANT ROLE TASKADMIN TO ROLE SYSADMIN;
+
+
+USE ROLE ACCOUNTADMIN;
+USE WAREHOUSE COMPUTE_WH;
+USE DATABASE DEMO3F_DB;
+CREATE OR REPLACE SCHEMA TASKSDEMO;
+
+
+
+CREATE OR REPLACE TABLE DEMO3F_DB.TASKSDEMO.PRODUCT
+(Prod_ID int,
+Prod_Desc varchar(),
+Category varchar(30),
+Segment varchar(20),
+Mfg_ID int,
+Mfg_Name varchar(50));
+
+Let’s insert some values into the product table:
+INSERT INTO DEMO3F_DB.TASKSDEMO.PRODUCT values
+(1201, 'Product 1201', 'Category 1201', 'Segment 1201', '1201', 'Mfg 1201');
+INSERT INTO DEMO3F_DB.TASKSDEMO.PRODUCT values
+(1202, 'Product 1202', 'Category 1202', 'Segment 1202', '1202', 'Mfg 1202');
+INSERT INTO DEMO3F_DB.TASKSDEMO.PRODUCT values
+(1203, 'Product 1203', 'Category 1203', 'Segment 1203', '1203', 'Mfg 1203');
+INSERT INTO DEMO3F_DB.TASKSDEMO.PRODUCT values
+(1204, 'Product 1204', 'Category 1204', 'Segment 1204', '1204', 'Mfg 1204');
+INSERT INTO DEMO3F_DB.TASKSDEMO.PRODUCT values
+(1205, 'Product 1205', 'Category 1205', 'Segment 1205', '1205', 'Mfg 1205');
+INSERT INTO DEMO3F_DB.TASKSDEMO.PRODUCT values
+(1206, 'Product 1206', 'Category 1206', 'Segment 1206', '1206', 'Mfg 1206');
+
+
+Next, we’ll create a sales table and then a stream on the sales table:
+CREATE OR REPLACE TABLE DEMO3F_DB.TASKSDEMO.SALES
+(Prod_ID int,
+Customer varchar(),
+Zip varchar(),
+Qty int,
+Revenue decimal(10,2));
+
+
+CREATE OR REPLACE STREAM DEMO3F_DB.TASKSDEMO.SALES_STREAM
+ON TABLE DEMO3F_DB.TASKSDEMO.SALES
+APPEND_ONLy = TRUE;
+
+
+INSERT INTO DEMO3F_DB.TASKSDEMO.SALES VALUES
+(1201, 'Amy Johnson', 45466, 45, 2345.67);
+INSERT INTO DEMO3F_DB.TASKSDEMO.SALES VALUES
+(1201, 'Harold Robinson', 89701, 45, 2345.67);
+INSERT INTO DEMO3F_DB.TASKSDEMO.SALES VALUES
+(1203, 'Chad Norton', 33236, 45, 2345.67);
+INSERT INTO DEMO3F_DB.TASKSDEMO.SALES VALUES
+(1206, 'Horatio Simon', 75148, 45, 2345.67);
+INSERT INTO DEMO3F_DB.TASKSDEMO.SALES VALUES
+(1205, 'Misty Crawford', 10001, 45, 2345.67);
+
+SELECT * FROM DEMO3F_DB.TASKSDEMO.SALES_STREAM;
+
+
+CREATE OR REPLACE TABLE DEMO3F_DB.TASKSDEMO.SALES_TRANSACT
+(Prod_ID int,
+Prod_Desc varchar(),
+Category varchar(30),
+Segment varchar(20),
+Mfg_ID int,
+Mfg_Name varchar(50),
+Customer varchar(),
+Zip varchar(),
+Qty int,
+Revenue decimal (10, 2),
+TS timestamp);
+
+INSERT INTO
+DEMO3F_DB.TASKSDEMO.SALES_TRANSACT
+(Prod_ID,Prod_Desc,Category,Segment,Mfg_Id,
+Mfg_Name,Customer,Zip,Qty,Revenue,TS)
+    SELECT
+    s.Prod_ID,p.Prod_Desc,p.Category,p.Segment,p.Mfg_ID,
+    p.Mfg_Name,s.Customer,s.Zip,s.Qty,s.Revenue,current_timestamp
+    FROM
+    DEMO3F_DB.TASKSDEMO.SALES_STREAM s
+    JOIN DEMO3F_DB.TASKSDEMO.PRODUCT p ON s.Prod_ID = p.Prod_ID;
+
+
+SELECT * FROM DEMO3F_DB.TASKSDEMO.SALES_TRANSACT;
+
+
+CREATE OR REPLACE TASK DEMO3F_DB.TASKSDEMO.SALES_TASK
+WAREHOUSE = compute_wh
+SCHEDULE = '1 minute'
+WHEN system$stream_has_data('DEMO3F_DB.TASKSDEMO.SALES_STREAM')
+AS
+INSERT INTO
+DEMO3F_DB.TASKSDEMO.SALES_TRANSACT
+(Prod_ID,Prod_Desc,Category,Segment,Mfg_Id,
+Mfg_Name,Customer,Zip,Qty,Revenue,TS)
+SELECT
+s.Prod_ID,p.Prod_Desc,p.Category,p.Segment,p.Mfg_ID,
+p.Mfg_Name,s.Customer,s.Zip,s.Qty,s.Revenue,current_timestamp
+FROM
+DEMO3F_DB.TASKSDEMO.SALES_STREAM s
+JOIN DEMO3F_DB.TASKSDEMO.PRODUCT p ON s.Prod_ID = p.Prod_ID;
+
+ALTER TASK DEMO3F_DB.TASKSDEMO.SALES_TASK RESUME;
+
+
+INSERT INTO DEMO3F_DB.TASKSDEMO.SALES VALUES
+(1201, 'Edward Jameson', 45466, 45, 2345.67);
+INSERT INTO DEMO3F_DB.TASKSDEMO.SALES VALUES
+(1201, 'Margaret Volt', 89701, 45, 2345.67);
+INSERT INTO DEMO3F_DB.TASKSDEMO.SALES VALUES
+(1203, 'Antoine Lancaster', 33236, 45, 2345.67);
+INSERT INTO DEMO3F_DB.TASKSDEMO.SALES VALUES
+(1204, 'Esther Baker', 75148, 45, 2345.67);
+INSERT INTO DEMO3F_DB.TASKSDEMO.SALES VALUES
+(1206, 'Quintin Anderson', 10001, 45, 2345.67);
+
+SELECT * FROM DEMO3F_DB.TASKSDEMO.SALES_STREAM;
+
+SELECT * FROM DEMO3F_DB.TASKSDEMO.SALES_TRANSACT;
+
+ALTER TASK DEMO3F_DB.TASKSDEMO.SALES_TASK SUSPEND;
+
+DROP DATABASE DEMO3C_DB; DROP DATABASE DEMO3D_DB;
+DROP DATABASE DEMO3E_DB; DROP DATABASE DEMO3F_DB;
+
+
+
